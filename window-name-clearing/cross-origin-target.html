@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>window.name cross-origin target – Origin B</title>
+<body>
+  <h1>Cross-origin target (Origin B)</h1>
+
+  <p>Origin: <span id="origin"></span></p>
+  <p>window.name seen here: "<span id="name"></span>"</p>
+  <p id="result"></p>
+
+  <button id="back">Back to Origin A</button>
+
+  <script>
+    document.getElementById('origin').textContent = location.origin;
+
+    const nameValue = window.name;
+    document.getElementById('name').textContent = nameValue;
+
+    const result = document.getElementById('result');
+
+    if (nameValue === 'cross-origin-test') {
+      result.textContent =
+        'Result: window.name persisted across cross-origin navigation.';
+    } else if (nameValue === '') {
+      result.textContent =
+        'Result: window.name was cleared on cross-origin navigation.';
+    } else {
+      result.textContent =
+        'Result: window.name changed from the set value; browser may be partitioning or sanitizing window.name on cross-origin navigation.';
+    }
+
+    document.getElementById('back').onclick = () => {
+      location.href = 'https://test-website-a.pages.dev/window-name-clearing/';
+    };
+  </script>
+</body>
