@@ -6,32 +6,51 @@
   <title>Storage Access API Embedded Tester Site B</title>
   <style>
     :root { color-scheme: light dark; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.45; margin: 0; padding: 18px; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.45;
+      margin: 0;
+      padding: 18px;
+      background: #0b0b0b;
+      color: #f1f1f1;
+    }
     h1,h2 { margin: 0 0 10px 0; }
     p { margin: 8px 0; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
-    .card { border: 1px solid rgba(127,127,127,0.28); border-radius: 14px; padding: 12px; margin: 12px 0; background: rgba(127,127,127,0.06); }
+    .card {
+      border: 1px solid rgba(200,200,200,0.22);
+      border-radius: 14px;
+      padding: 12px;
+      margin: 12px 0;
+      background: rgba(255,255,255,0.06);
+    }
     button {
       padding: 10px 14px;
       border-radius: 10px;
-      border: 1px solid rgba(127,127,127,0.35);
-      background: rgba(127,127,127,0.12);
+      border: 1px solid rgba(200,200,200,0.28);
+      background: rgba(255,255,255,0.10);
       color: inherit;
       cursor: pointer;
     }
-    button:hover { background: rgba(127,127,127,0.18); }
-    pre { padding: 12px; border-radius: 10px; overflow: auto; background: rgba(127,127,127,0.14); margin: 0; }
+    button:hover { background: rgba(255,255,255,0.14); }
+    pre { padding: 12px; border-radius: 10px; overflow: auto; background: rgba(255,255,255,0.10); margin: 0; }
     .small { opacity: 0.85; }
-    .ok { border-color: rgba(0,160,0,0.6); }
-    .no { border-color: rgba(200,0,0,0.6); }
+    .ok { border-color: rgba(0,160,0,0.7); }
+    .no { border-color: rgba(200,0,0,0.7); }
+    .warn { border-color: rgba(200,140,0,0.8); }
   </style>
 </head>
 <body>
   <h1 id="title">Storage Access API Embedded Tester Site B</h1>
 
-  <div class="card" id="primaryStatus"></div>
+  <div class="card warn" id="primaryStatus">
+    <b>JavaScript has not run yet.</b>
+    <div class="small">If this stays visible, check DevTools Console for errors or CSP blocking inline scripts.</div>
+  </div>
 
-  <div class="card" id="explain"></div>
+  <div class="card" id="explain">
+    <b>Waiting for JavaScript.</b>
+  </div>
 
   <div class="card" id="actionCard" style="display:none;">
     <button id="run">Run test</button>
@@ -68,6 +87,12 @@
 
       function setPrimary(message, ok) {
         primaryEl.className = "card " + (ok ? "ok" : "no");
+        primaryEl.innerHTML = "<b>" + message + "</b>";
+        post("status", { message });
+      }
+
+      function setPrimaryWarn(message) {
+        primaryEl.className = "card warn";
         primaryEl.innerHTML = "<b>" + message + "</b>";
         post("status", { message });
       }
@@ -111,5 +136,219 @@
       }
 
       async function hasStorageAccess() {
-        if (typeof document.hasStorageAccess !== "function") return { supported: false, value: null, e
+        if (typeof document.hasStorageAccess !== "function") return { supported: false, value: null, error: null };
+        try { return { supported: true, value: await document.hasStorageAccess(), error: null }; }
+        catch (e) { return { supported: true, value: null, error: (e?.name || "Error") + ": " + (e?.message || String(e)) }; }
+      }
+
+      async function hasUnpartitionedCookieAccess() {
+        if (typeof document.hasUnpartitionedCookieAccess !== "function") return { supported: false, value: null, error: null };
+        try { return { supported: true, value: await document.hasUnpartitionedCookieAccess(), error: null }; }
+        catch (e) { return { supported: true, value: null, error: (e?.name || "Error") + ": " + (e?.message || String(e)) }; }
+      }
+
+      function dumpObj(o) { return JSON.stringify(o, null, 2); }
+
+      async function snapshot(label, expectedToken) {
+        const supported = {
+          hasStorageAccess: typeof document.hasStorageAccess === "function",
+          requestStorageAccess: typeof document.requestStorageAccess === "function",
+          hasUnpartitionedCookieAccess: typeof document.hasUnpartitionedCookieAccess === "function",
+        };
+
+        const hsa = await hasStorageAccess();
+        const huca = await hasUnpartitionedCookieAccess();
+        const cookies = cookieMap();
+
+        const fpCookie = cookies["saa_fp_cookie"] || "";
+        const fpToken = lsGet("saa_fp_token");
+
+        const fpCookieMatches = expectedToken ? fpCookie === expectedToken : Boolean(fpCookie);
+        const fpTokenMatches = expectedToken && fpToken.ok ? fpToken.v === expectedToken : (fpToken.ok && Boolean(fpToken.v));
+
+        const visibleAny = Boolean(fpCookie) || (fpToken.ok && Boolean(fpToken.v));
+        const matchesAny = fpCookieMatches || fpTokenMatches;
+
+        return {
+          label,
+          supported,
+          hasStorageAccess: hsa,
+          hasUnpartitionedCookieAccess: huca,
+          fpCookieVisible: Boolean(fpCookie),
+          fpLocalStorageVisible: fpToken.ok && Boolean(fpToken.v),
+          fpCookieValue: fpCookie,
+          fpLocalStorageValue: fpToken.ok ? fpToken.v : null,
+          fpLocalStorageError: fpToken.ok ? null : fpToken.err,
+          expectedToken: expectedToken || null,
+          expectedTokenProvided: Boolean(expectedToken),
+          visibleAny,
+          matchesAny,
+          rawCookie: document.cookie || ""
+        };
+      }
+
+      function classify(before, after, req, ctx) {
+        const alreadyAvailable =
+          before.visibleAny ||
+          (before.hasStorageAccess.supported && before.hasStorageAccess.value === true) ||
+          (before.hasUnpartitionedCookieAccess.supported && before.hasUnpartitionedCookieAccess.value === true);
+
+        const apiSupported =
+          before.supported.requestStorageAccess || before.supported.hasStorageAccess;
+
+        const seedProven = before.expectedTokenProvided ? before.matchesAny : before.visibleAny;
+        const seeded = ctx.seededAttempted || seedProven;
+
+        if (!seeded) return { code: "SETUP_MISSING", ok: false, message: "Seed step not completed." };
+        if (alreadyAvailable) return { code: "ALREADY_AVAILABLE", ok: true, message: "Third party cookies are already enabled, storage access API not needed." };
+        if (!apiSupported) return { code: "UNSUPPORTED", ok: false, message: "Storage Access API unsupported." };
+        if (!req || !req.attempted) return { code: "READY", ok: false, message: "Ready." };
+
+        if (req.ok === false) {
+          const n = req.errorName || "";
+          if (n === "SecurityError") return { code: "BLOCKED", ok: false, message: "Storage access request blocked by embedding context." };
+          if (n === "NotAllowedError" || n === "PermissionDeniedError") return { code: "DENIED", ok: false, message: "Storage Access API permission denied." };
+          return { code: "DENIED", ok: false, message: "Storage Access API permission denied." };
+        }
+
+        const worked =
+          (before.expectedTokenProvided ? after.matchesAny : after.visibleAny) ||
+          (after.hasStorageAccess.supported && after.hasStorageAccess.value === true) ||
+          (after.hasUnpartitionedCookieAccess.supported && after.hasUnpartitionedCookieAccess.value === true);
+
+        if (worked) return { code: "GRANTED_WORKED", ok: true, message: "Storage access granted and first party state became visible." };
+        return { code: "GRANTED_NO_EFFECT", ok: false, message: "Storage access granted but no new first party state was observed." };
+      }
+
+      async function runFullTest(expectedToken, ctx) {
+        outEl.textContent = "";
+        line("[" + new Date().toISOString() + "] starting test");
+
+        const before = await snapshot("before", expectedToken);
+        line(dumpObj(before));
+
+        const pre = classify(before, before, null, ctx);
+        setPrimary(pre.message, pre.ok);
+
+        if (pre.code === "SETUP_MISSING" || pre.code === "UNSUPPORTED" || pre.code === "ALREADY_AVAILABLE") {
+          post("summary", { summary: { status: pre, before, after: null, request: null, context: ctx } });
+          return;
+        }
+
+        let req = { attempted: true, ok: null, errorName: null, errorMessage: null };
+        if (typeof document.requestStorageAccess !== "function") {
+          req.ok = false;
+          req.errorName = "UnsupportedError";
+          req.errorMessage = "requestStorageAccess not available";
+        } else {
+          try {
+            line("Calling document.requestStorageAccess()");
+            await document.requestStorageAccess();
+            req.ok = true;
+            line("requestStorageAccess resolved");
+          } catch (e) {
+            req.ok = false;
+            req.errorName = e?.name || "Error";
+            req.errorMessage = e?.message || String(e);
+            line("requestStorageAccess rejected " + req.errorName + ": " + req.errorMessage);
+          }
+        }
+
+        const after = await snapshot("after", expectedToken);
+        line(dumpObj(after));
+
+        const status = classify(before, after, req, ctx);
+        setPrimary(status.message, status.ok);
+
+        post("summary", { summary: { status, before, after, request: req, context: ctx } });
+      }
+
+      const inIframe = window.top !== window.self;
+      const params = new URLSearchParams(location.search);
+
+      const expectedToken = params.get("expectedToken") || "";
+      const seededAttempted = params.get("seededAttempted") === "1";
+
+      setPrimaryWarn("JavaScript is running.");
+      line("[" + new Date().toISOString() + "] JavaScript running");
+      line("inIframe=" + String(inIframe) + " search=" + location.search);
+
+      explainEl.innerHTML = `
+        <h2>How results are determined</h2>
+        <p>
+          The seed page writes a token into cookie <span class="mono">saa_fp_cookie</span> and localStorage
+          <span class="mono">saa_fp_token</span> on this origin in a top level context.
+        </p>
+        <p>
+          The embedded test checks whether that seeded state is visible before and after calling
+          <span class="mono">document.requestStorageAccess()</span>.
+        </p>
+      `;
+
+      if (!inIframe && params.get("seed") === "1") {
+        const tokenFromQuery = params.get("token");
+        const token = tokenFromQuery ? String(tokenFromQuery) : randHex(16);
+        const t = new Date().toISOString();
+
+        const ls1 = lsSet("saa_fp_token", token);
+        setCookie("saa_fp_cookie", token);
+        lsSet("saa_fp_seed_time", t);
+        setCookie("saa_fp_seed_time", t);
+
+        document.getElementById("title").textContent = "Storage Access API Seed Page Site B";
+
+        primaryEl.className = "card ok";
+        primaryEl.innerHTML =
+          "<b>Seed complete.</b><div class='small mono'>Token " + token + "</div><div class='small mono'>Time " + t + "</div>";
+
+        outEl.textContent = "";
+        line("Seeded first party state on Site B.");
+        if (!ls1.ok) line("localStorage write error " + ls1.err);
+
+        (async () => {
+          const s = await snapshot("top_level_seed_page", token);
+          line(dumpObj(s));
+        })();
+
+        actionCard.style.display = "none";
+        return;
+      }
+
+      if (inIframe && params.get("embed") === "1") {
+        document.getElementById("title").textContent = "Storage Access API Embedded Test Page Site B";
+        actionCard.style.display = "block";
+
+        const ctx = { seededAttempted };
+
+        document.getElementById("run").addEventListener("click", () => runFullTest(expectedToken, ctx));
+
+        (async () => {
+          const before = await snapshot("initial", expectedToken);
+          const status = classify(before, before, null, ctx);
+          setPrimary(status.message, status.ok);
+          post("summary", { summary: { status, before, after: null, request: null, context: ctx } });
+        })();
+
+        return;
+      }
+
+      setPrimaryWarn("Open this page with seed query to seed state.");
+      line("Use ?seed=1 to seed first party state.");
+    }
+
+    try {
+      main();
+    } catch (e) {
+      const msg = (e?.name || "Error") + ": " + (e?.message || String(e));
+      const stack = e?.stack ? String(e.stack) : "";
+      const primaryEl = document.getElementById("primaryStatus");
+      const outEl = document.getElementById("out");
+      primaryEl.className = "card no";
+      primaryEl.innerHTML = "<b>JavaScript error.</b><div class='small mono'>" + msg + "</div>";
+      outEl.textContent = stack || msg;
+      console.error(e);
+    }
+  </script>
+</body>
+</html>
 
