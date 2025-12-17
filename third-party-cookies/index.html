@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cookie Access Test Site B</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; line-height: 1.35; }
+    .card { border: 1px solid #333; border-radius: 12px; padding: 16px; max-width: 860px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    button { padding: 10px 12px; border-radius: 10px; border: 1px solid #333; background: #fff; cursor: pointer; }
+    button:active { transform: translateY(1px); }
+    code, pre { background: #f4f4f4; padding: 2px 6px; border-radius: 6px; }
+    pre { padding: 10px; overflow: auto; }
+    .ok { color: #0a7a0a; font-weight: 600; }
+    .warn { color: #9a5a00; font-weight: 600; }
+    .bad { color: #b00020; font-weight: 600; }
+    .small { font-size: 13px; opacity: 0.9; }
+    input { padding: 10px 12px; border-radius: 10px; border: 1px solid #333; width: min(520px, 100%); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Site B (top level) sets cookie C</h1>
+    <p>
+      This page is meant to be opened as a top level page on origin B.
+      Click to set a first party cookie named <code>C</code>, then load Site A which embeds B in an iframe.
+    </p>
+
+    <div class="row">
+      <button id="set">Set cookie C</button>
+      <button id="clear">Clear cookie C</button>
+    </div>
+
+    <h2>Status</h2>
+    <p><span class="small">Origin:</span> <code id="origin"></code></p>
+    <p><span class="small">Secure context:</span> <code id="secure"></code></p>
+
+    <p><span class="small">Cookie C value (as seen here):</span></p>
+    <pre id="cval">(not read yet)</pre>
+
+    <p><span class="small">Full document.cookie:</span></p>
+    <pre id="all">(not read yet)</pre>
+
+    <h2>Next step</h2>
+    <p>
+      Copy this value into Site A’s “Expected C value” field:
+      <code id="expected">(set cookie first)</code>
+    </p>
+  </div>
+
+<script>
+  const COOKIE_NAME = "C";
+
+  function parseCookieValue(name) {
+    const parts = document.cookie ? document.cookie.split("; ") : [];
+    for (const p of parts) {
+      const eq = p.indexOf("=");
+      const k = eq >= 0 ? p.slice(0, eq) : p;
+      const v = eq >= 0 ? p.slice(eq + 1) : "";
+      if (k === name) return v;
+    }
+    return null;
+  }
+
+  function refresh() {
+    document.getElementById("origin").textContent = location.origin;
+    document.getElementById("secure").textContent = String(window.isSecureContext);
+
+    const v = parseCookieValue(COOKIE_NAME);
+    document.getElementById("cval").textContent = v === null ? "(missing)" : v;
+    document.getElementById("all").textContent = document.cookie || "(empty)";
+    document.getElementById("expected").textContent = v === null ? "(set cookie first)" : v;
+  }
+
+  function randomValue(prefix) {
+    const r = Math.random().toString(16).slice(2);
+    const t = new Date().toISOString();
+    return `${prefix}.${t}.${r}`;
+  }
+
+  document.getElementById("set").addEventListener("click", () => {
+    const value = randomValue("top");
+    // Intentionally no SameSite attribute. This is about JS read access inside an iframe, not request sending behavior.
+    document.cookie = `${COOKIE_NAME}=${encodeURIComponent(value)}; Max-Age=31536000; Path=/`;
+    refresh();
+  });
+
+  document.getElementById("clear").addEventListener("click", () => {
+    document.cookie = `${COOKIE_NAME}=; Max-Age=0; Path=/`;
+    refresh();
+  });
+
+  refresh();
+</script>
+</body>
+</html>
+

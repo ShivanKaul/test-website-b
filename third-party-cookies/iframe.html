@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cookie Access Test Site B Iframe</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; line-height: 1.35; }
+    .card { border: 1px solid #333; border-radius: 12px; padding: 14px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    button { padding: 8px 10px; border-radius: 10px; border: 1px solid #333; background: #fff; cursor: pointer; }
+    code, pre { background: #f4f4f4; padding: 2px 6px; border-radius: 6px; }
+    pre { padding: 10px; overflow: auto; }
+    .ok { color: #0a7a0a; font-weight: 700; }
+    .warn { color: #9a5a00; font-weight: 700; }
+    .bad { color: #b00020; font-weight: 700; }
+    input { padding: 8px 10px; border-radius: 10px; border: 1px solid #333; width: min(520px, 100%); }
+    .small { font-size: 13px; opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Site B inside an iframe</h2>
+    <p class="small">
+      This page runs on origin B but is intended to be embedded inside top level site A.
+      It checks whether cookie <code>C</code> matches the expected value that was set when B was top level.
+    </p>
+
+    <div class="row">
+      <button id="read">Read cookie C</button>
+      <button id="set">Set cookie C inside iframe</button>
+      <button id="clear">Clear cookie C inside iframe</button>
+    </div>
+
+    <p><span class="small">Origin:</span> <code id="origin"></code></p>
+    <p><span class="small">Secure context:</span> <code id="secure"></code></p>
+    <p><span class="small">Expected C value (from URL param):</span> <code id="expected">(none)</code></p>
+
+    <h3>Result</h3>
+    <p id="verdict">(click Read cookie C)</p>
+
+    <p><span class="small">Cookie C value (as seen here):</span></p>
+    <pre id="cval">(not read yet)</pre>
+
+    <p><span class="small">Full document.cookie:</span></p>
+    <pre id="all">(not read yet)</pre>
+  </div>
+
+<script>
+  const COOKIE_NAME = "C";
+
+  function qs(name) {
+    const u = new URL(location.href);
+    return u.searchParams.get(name);
+  }
+
+  function parseCookieValue(name) {
+    const parts = document.cookie ? document.cookie.split("; ") : [];
+    for (const p of parts) {
+      const eq = p.indexOf("=");
+      const k = eq >= 0 ? p.slice(0, eq) : p;
+      const v = eq >= 0 ? p.slice(eq + 1) : "";
+      if (k === name) return v;
+    }
+    return null;
+  }
+
+  function refresh() {
+    document.getElementById("origin").textContent = location.origin;
+    document.getElementById("secure").textContent = String(window.isSecureContext);
+
+    const expected = qs("expected");
+    document.getElementById("expected").textContent = expected === null ? "(none)" : expected;
+
+    const v = parseCookieValue(COOKIE_NAME);
+    document.getElementById("cval").textContent = v === null ? "(missing)" : decodeURIComponent(v);
+    document.getElementById("all").textContent = document.cookie || "(empty)";
+
+    const verdict = document.getElementById("verdict");
+    if (expected === null) {
+      verdict.className = "warn";
+      verdict.textContent = "No expected value provided. This iframe can still show whether C is present, but cannot confirm it matches B top level.";
+      return;
+    }
+
+    if (v === null) {
+      verdict.className = "bad";
+      verdict.textContent = "Cookie C is missing in the iframe. This indicates cookie access is blocked or partitioned for B inside A.";
+      return;
+    }
+
+    const actual = decodeURIComponent(v);
+    if (actual === expected) {
+      verdict.className = "ok";
+      verdict.textContent = "Cookie C matches the value set when B was top level. B inside A can read the same cookie.";
+      return;
+    }
+
+    verdict.className = "warn";
+    verdict.textContent = "Cookie C is present but does not match the top level value. This usually indicates partitioning, or that C was overwritten in this embedded context.";
+  }
+
+  function randomValue(prefix) {
+    const r = Math.random().toString(16).slice(2);
+    const t = new Date().toISOString();
+    return `${prefix}.${t}.${r}`;
+  }
+
+  document.getElementById("read").addEventListener("click", refresh);
+
+  document.getElementById("set").addEventListener("click", () => {
+    const value = randomValue("iframe");
+    document.cookie = `${COOKIE_NAME}=${encodeURIComponent(value)}; Max-Age=31536000; Path=/`;
+    refresh();
+  });
+
+  document.getElementById("clear").addEventListener("click", () => {
+    document.cookie = `${COOKIE_NAME}=; Max-Age=0; Path=/`;
+    refresh();
+  });
+
+  refresh();
+</script>
+</body>
+</html>
+
