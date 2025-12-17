@@ -9,38 +9,42 @@
     .card { border: 1px solid #333; border-radius: 12px; padding: 14px; }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     button { padding: 8px 10px; border-radius: 10px; border: 1px solid #333; background: #fff; cursor: pointer; }
+    button:active { transform: translateY(1px); }
     code, pre { background: #f4f4f4; padding: 2px 6px; border-radius: 6px; }
     pre { padding: 10px; overflow: auto; }
     .ok { color: #0a7a0a; font-weight: 700; }
     .warn { color: #9a5a00; font-weight: 700; }
     .bad { color: #b00020; font-weight: 700; }
-    input { padding: 8px 10px; border-radius: 10px; border: 1px solid #333; width: min(520px, 100%); }
     .small { font-size: 13px; opacity: 0.9; }
-    .log { max-height: 220px; }
+    .log { max-height: 180px; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h2>Website B inside an iframe</h2>
+    <h2>Site B inside an iframe</h2>
     <p class="small">
-      This page runs on origin B but is intended to be embedded inside top level website A.
+      This page runs on origin B but is intended to be embedded inside top level site A.
       It checks whether cookie <code>C</code> matches the expected value that was set when B was top level.
     </p>
 
     <div class="row">
-      <button id="read">Read cookie C</button>
-      <button id="set">Set cookie C inside iframe</button>
-      <button id="clear">Clear cookie C inside iframe</button>
+      <button id="read" type="button">Read cookie C</button>
+      <button id="set" type="button">Set cookie C inside iframe</button>
+      <button id="clear" type="button">Clear cookie C inside iframe</button>
     </div>
+
+    <p class="small">
+      Last action: <code id="lastAction">(none)</code>
+      Click count: <code id="clickCount">0</code>
+    </p>
 
     <p><span class="small">Origin:</span> <code id="origin"></code></p>
     <p><span class="small">Secure context:</span> <code id="secure"></code></p>
-    <p><span class="small">Is framed:</span> <code id="framed"></code></p>
     <p><span class="small">Document referrer:</span> <code id="referrer"></code></p>
     <p><span class="small">Expected C value (from URL param):</span> <code id="expected">(none)</code></p>
 
     <h3>Result</h3>
-    <p id="verdict">(click Read cookie C)</p>
+    <p id="verdict">(page loaded)</p>
 
     <p><span class="small">Cookie C value (as seen here):</span></p>
     <pre id="cval">(not read yet)</pre>
@@ -54,34 +58,40 @@
 
 <script>
   const COOKIE_NAME = "C";
-  const LOG_LIMIT = 200;
+  const LOG_LIMIT = 250;
 
+  let clickCount = 0;
   const logLines = [];
+
+  function safeJson(x) {
+    try { return JSON.stringify(x); } catch { return String(x); }
+  }
+
   function log(msg, data) {
     const ts = new Date().toISOString();
     const extra = data === undefined ? "" : " " + safeJson(data);
     const line = `[${ts}] ${msg}${extra}`;
     logLines.push(line);
     if (logLines.length > LOG_LIMIT) logLines.shift();
-
     console.log(line);
     const el = document.getElementById("log");
     if (el) el.textContent = logLines.join("\n");
   }
 
-  function safeJson(x) {
-    try { return JSON.stringify(x); } catch { return String(x); }
+  function noteAction(name, data) {
+    clickCount += 1;
+    document.getElementById("clickCount").textContent = String(clickCount);
+    document.getElementById("lastAction").textContent = name;
+    log(name, data);
   }
 
   function qs(name) {
-    const u = new URL(location.href);
-    return u.searchParams.get(name);
+    return new URL(location.href).searchParams.get(name);
   }
 
   function parseCookieValue(name) {
     const raw = document.cookie || "";
     if (!raw) return null;
-
     const parts = raw.split("; ");
     for (const p of parts) {
       const eq = p.indexOf("=");
@@ -92,15 +102,11 @@
     return null;
   }
 
-  function refresh() {
+  function refresh(context) {
     const expected = qs("expected");
-    const framed = (() => {
-      try { return window.top !== window.self; } catch { return true; }
-    })();
 
     document.getElementById("origin").textContent = location.origin;
     document.getElementById("secure").textContent = String(window.isSecureContext);
-    document.getElementById("framed").textContent = String(framed);
     document.getElementById("referrer").textContent = document.referrer ? document.referrer : "(empty)";
     document.getElementById("expected").textContent = expected === null ? "(none)" : expected;
 
@@ -111,15 +117,37 @@
     document.getElementById("all").textContent = document.cookie || "(empty)";
 
     const verdict = document.getElementById("verdict");
+
+    if (context && context.writeAttempted) {
+      if (decoded === null) {
+        verdict.className = "bad";
+        verdict.textContent =
+          "Cookie write appeared to be ignored. This often means third party cookies are blocked in this embedded context.";
+        log("refresh: cookie write ignored", { attemptedValue: context.attemptedValue, expected });
+        return;
+      }
+      if (decoded !== context.attemptedValue) {
+        verdict.className = "warn";
+        verdict.textContent =
+          "Cookie write did not round trip to the same value. This can indicate partitioning or rewriting.";
+        log("refresh: cookie write mismatch", { attemptedValue: context.attemptedValue, actual: decoded, expected });
+        return;
+      }
+      verdict.className = "ok";
+      verdict.textContent = "Cookie write succeeded and was readable via document.cookie in this context.";
+      log("refresh: cookie write ok", { value: decoded, expected });
+      return;
+    }
+
     if (expected === null) {
       verdict.className = "warn";
       verdict.textContent =
         "No expected value provided. This iframe can still show whether C is present, but cannot confirm it matches B top level.";
-      log("refresh: no expected param", { cookiePresent: v !== null, cookieValue: decoded });
+      log("refresh: no expected param", { cookiePresent: decoded !== null });
       return;
     }
 
-    if (v === null) {
+    if (decoded === null) {
       verdict.className = "bad";
       verdict.textContent =
         "Cookie C is missing in the iframe. This indicates cookie access is blocked or partitioned for B inside A.";
@@ -147,25 +175,32 @@
     return `${prefix}.${t}.${r}`;
   }
 
+  // Log any click anywhere, even if it is not on the buttons.
+  document.addEventListener("click", (e) => {
+    log("document click", { tag: e.target && e.target.tagName, id: e.target && e.target.id });
+  }, true);
+
   document.getElementById("read").addEventListener("click", () => {
-    log("action: read clicked");
+    noteAction("action: read clicked");
     refresh();
   });
 
   document.getElementById("set").addEventListener("click", () => {
     const value = randomValue("iframe");
-    log("action: set clicked", { setValue: value });
+    noteAction("action: set clicked", { setValue: value });
+
     document.cookie = `${COOKIE_NAME}=${encodeURIComponent(value)}; Max-Age=31536000; Path=/`;
-    refresh();
+
+    // Read back immediately and report if the write was ignored.
+    refresh({ writeAttempted: true, attemptedValue: value });
   });
 
   document.getElementById("clear").addEventListener("click", () => {
-    log("action: clear clicked");
+    noteAction("action: clear clicked");
     document.cookie = `${COOKIE_NAME}=; Max-Age=0; Path=/`;
     refresh();
   });
 
-  // Initial diagnostics.
   log("init", {
     href: location.href,
     origin: location.origin,
