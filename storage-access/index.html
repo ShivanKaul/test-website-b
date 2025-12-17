@@ -33,9 +33,7 @@
   <div class="card" id="actionCard" style="display:none;">
     <p><b>One click to run everything:</b></p>
     <button id="run">Run full test (includes requestStorageAccess)</button>
-    <p><small>
-      This click is required for user activation. The page will log before/after and post results to Site A.
-    </small></p>
+    <p><small>This click is required for user activation.</small></p>
   </div>
 
   <div class="card">
@@ -71,8 +69,9 @@
     }
 
     function setCookie(name, value) {
-      // Eligible for 3P contexts when allowed.
-      document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + "; Path=/; Max-Age=31536000; SameSite=None; Secure";
+      document.cookie =
+        encodeURIComponent(name) + "=" + encodeURIComponent(value) +
+        "; Path=/; Max-Age=31536000; SameSite=None; Secure";
     }
 
     function randHex(nBytes) {
@@ -87,24 +86,24 @@
 
     function lsGet(k) {
       try { return { ok: true, v: localStorage.getItem(k) }; }
-      catch (e) { return { ok: false, err: (e && e.name ? e.name : "Error") + ": " + (e && e.message ? e.message : String(e)) }; }
+      catch (e) { return { ok: false, err: (e?.name || "Error") + ": " + (e?.message || String(e)) }; }
     }
 
     function lsSet(k, v) {
       try { localStorage.setItem(k, v); return { ok: true }; }
-      catch (e) { return { ok: false, err: (e && e.name ? e.name : "Error") + ": " + (e && e.message ? e.message : String(e)) }; }
+      catch (e) { return { ok: false, err: (e?.name || "Error") + ": " + (e?.message || String(e)) }; }
     }
 
     async function hasStorageAccess() {
       if (typeof document.hasStorageAccess !== "function") return { supported: false, value: null, error: null };
       try { return { supported: true, value: await document.hasStorageAccess(), error: null }; }
-      catch (e) { return { supported: true, value: null, error: (e && e.name ? e.name : "Error") + ": " + (e && e.message ? e.message : String(e)) }; }
+      catch (e) { return { supported: true, value: null, error: (e?.name || "Error") + ": " + (e?.message || String(e)) }; }
     }
 
     async function hasUnpartitionedCookieAccess() {
       if (typeof document.hasUnpartitionedCookieAccess !== "function") return { supported: false, value: null, error: null };
       try { return { supported: true, value: await document.hasUnpartitionedCookieAccess(), error: null }; }
-      catch (e) { return { supported: true, value: null, error: (e && e.name ? e.name : "Error") + ": " + (e && e.message ? e.message : String(e)) }; }
+      catch (e) { return { supported: true, value: null, error: (e?.name || "Error") + ": " + (e?.message || String(e)) }; }
     }
 
     function dumpObj(o) { return JSON.stringify(o, null, 2); }
@@ -139,7 +138,6 @@
 
     async function runFullTest() {
       outEl.textContent = "";
-
       line("[" + new Date().toISOString() + "] starting test");
 
       const before = await snapshot("before");
@@ -157,7 +155,7 @@
           line("✅ requestStorageAccess resolved");
         } catch (e) {
           req.ok = false;
-          req.error = (e && e.name ? e.name : "Error") + ": " + (e && e.message ? e.message : String(e));
+          req.error = (e?.name || "Error") + ": " + (e?.message || String(e));
           line("❌ requestStorageAccess rejected: " + req.error);
         }
       }
@@ -166,8 +164,6 @@
       line(dumpObj(after));
 
       const actuallyWorks =
-        // strongest signals in a static page:
-        // “first-party seeded” state becomes visible in the embedded context after the request.
         (!before.fpCookieVisible && after.fpCookieVisible) ||
         (!before.fpLocalStorageVisible && after.fpLocalStorageVisible);
 
@@ -196,14 +192,12 @@
       badge.className = "card " + (actuallyWorks ? "ok" : "no");
       badge.innerHTML = actuallyWorks
         ? "<b>PASS:</b> Embedded context gained visibility into first-party-seeded state after the request."
-        : "<b>NO CLEAR PASS:</b> No change detected. This can mean SAA is unsupported, the request was denied, or your sites aren’t truly cross-site in this environment.";
+        : "<b>NO CLEAR PASS:</b> No change detected (unsupported/denied/not actually 3P in this environment).";
       document.body.insertBefore(badge, document.body.children[2]);
     }
 
-    // Mode routing.
     const inIframe = window.top !== window.self;
     const params = new URLSearchParams(location.search);
-    const wantsEmbed = params.get("embed") === "1";
 
     if (!inIframe && params.get("seed") === "1") {
       // Auto-seed in top-level with zero clicks.
@@ -221,19 +215,16 @@
         "<b>Seed complete.</b>",
         "<div>Token: <span class='mono'>" + token + "</span></div>",
         "<div>Time: <span class='mono'>" + t + "</span></div>",
-        "<div><small>Now return to the Site A tab and click “Run full test” inside the iframe.</small></div>",
+        "<div><small>Return to Site A and click “Run full test” inside the iframe.</small></div>",
         (!ls1.ok ? "<div><small>localStorage write error: <span class='mono'>" + ls1.err + "</span></small></div>" : "")
       ].join("");
 
       line("Seeded first-party state on B.");
-      line("document.cookie=" + (document.cookie || ""));
-      const seedTime = lsGet("saa_fp_seed_time");
-      line("localStorage.saa_fp_seed_time=" + (seedTime.ok ? seedTime.v : seedTime.err));
-    } else if (inIframe || wantsEmbed) {
+    } else if (inIframe && params.get("embed") === "1") {
       document.getElementById("title").textContent = "Site B — Embedded tester";
       modeEl.className = "card";
       modeEl.innerHTML = [
-        "<div>Running embedded in iframe: <span class='mono'>" + String(inIframe) + "</span></div>",
+        "<div>Running embedded in iframe: <span class='mono'>true</span></div>",
         "<div>Origin: <span class='mono'>" + location.origin + "</span></div>",
         "<div><small>Click once to run availability + request + verification.</small></div>"
       ].join("");
@@ -241,15 +232,22 @@
 
       document.getElementById("run").addEventListener("click", runFullTest);
       line("Ready. Click “Run full test”.");
-    } else {
-      // Friendly default if someone visits B without ?seed=1.
-      document.getElementById("title").textContent = "Site B — Setup";
+    } else if (inIframe) {
+      // If embed=1 is missing, still show the button (helps if someone strips query).
+      document.getElementById("title").textContent = "Site B — Embedded tester";
       modeEl.className = "card";
       modeEl.innerHTML = [
-        "<b>Open this page with <span class='mono'>?seed=1</span> to auto-seed first-party state.</b>",
-        "<div><small>Usually you’ll open it via the button on Site A.</small></div>"
+        "<div>Running embedded in iframe: <span class='mono'>true</span></div>",
+        "<div>Origin: <span class='mono'>" + location.origin + "</span></div>"
       ].join("");
-      line("Visit /?seed=1 to seed first-party state.");
+      actionCard.style.display = "block";
+      document.getElementById("run").addEventListener("click", runFullTest);
+      line("Ready. Click “Run full test”.");
+    } else {
+      document.getElementById("title").textContent = "Site B — Setup";
+      modeEl.className = "card";
+      modeEl.innerHTML = "<b>Open this page with <span class='mono'>?seed=1</span> to auto-seed first-party state.</b>";
+      line("Visit ?seed=1 to seed first-party state.");
     }
   </script>
 </body>
