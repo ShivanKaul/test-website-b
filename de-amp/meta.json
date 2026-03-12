@@ -1,0 +1,4 @@
+{
+  "title": "De-AMP Sec-Fetch-Site Bypass",
+  "description": "Hosts the fake AMP page that triggers a De-AMP redirect back to Site A."
+}
