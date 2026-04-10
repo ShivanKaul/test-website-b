@@ -1,9 +1,25 @@
 export async function onRequestGet(context) {
   const { request } = context;
 
+  const uaHeaderNames = new Set([
+    'user-agent',
+    'sec-ch-ua',
+    'sec-ch-ua-mobile',
+    'sec-ch-ua-platform',
+    'sec-ch-ua-full-version-list',
+    'sec-ch-ua-model',
+    'sec-ch-ua-arch',
+    'sec-ch-ua-bitness',
+    'sec-ch-ua-platform-version',
+    'sec-ch-ua-wow64',
+  ]);
+
+  const allHeaders = [...request.headers.entries()];
+  const uaHeaders = allHeaders.filter(([name]) => uaHeaderNames.has(name)).sort((a, b) => a[0].localeCompare(b[0]));
+  const otherHeaders = allHeaders.filter(([name]) => !uaHeaderNames.has(name)).sort((a, b) => a[0].localeCompare(b[0]));
+
   let headerRows = '';
-  const sorted = [...request.headers.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  for (const [name, value] of sorted) {
+  for (const [name, value] of [...uaHeaders, ...otherHeaders]) {
     headerRows += `<tr><td><code>${name}</code></td><td><code>${value}</code></td></tr>\n`;
   }
 
