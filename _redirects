@@ -1,1 +1,2 @@
 /server-redirect/go  https://test-website-a.pages.dev/server-redirect/headers  302
+/server-redirect/lobsters  https://lobste.rs  302
