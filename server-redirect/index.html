@@ -18,8 +18,9 @@
 
   <div class="card">
     <h2>What this tests</h2>
-    <p>Clicking the link below navigates to a same-origin path that returns a
-    <code>302</code> server-side redirect to a cross-site header inspector on
+    <p>The link below navigates to
+    <code>/server-redirect/go</code>, which returns a <code>302</code>
+    server-side redirect to a cross-site header inspector on
     <code>test-website-a.pages.dev</code>. The inspector displays all HTTP
     request headers and JS properties (<code>navigator.userAgent</code>,
     <code>navigator.userAgentData.brands</code>).</p>
@@ -28,6 +29,11 @@
   <div class="card">
     <h2>Test Link</h2>
     <p><a href="/server-redirect/go">Navigate to header inspector via server-side 302 redirect</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Direct Header Inspector</h2>
+    <p><a href="/server-redirect/headers">Site B header inspector (no redirect)</a></p>
   </div>
 </body>
 </html>
