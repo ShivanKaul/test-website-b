@@ -1,0 +1,4 @@
+{
+  "title": "Server-Side Redirect",
+  "description": "Tests browser behavior on a server-side 302 redirect to a header inspector page."
+}
