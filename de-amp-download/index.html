@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>De-AMP Content-Disposition: attachment Bypass (Site B)</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.45; margin: 0; padding: 18px; max-width: 800px; margin: 0 auto; }
+    .card { border: 1px solid rgba(127,127,127,0.28); border-radius: 14px; padding: 12px; margin: 12px 0; background: rgba(127,127,127,0.06); }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(127,127,127,0.14); padding: 2px 6px; border-radius: 4px; }
+    a { color: #0066cc; }
+  </style>
+</head>
+<body>
+  <h1>De-AMP Content-Disposition: attachment Bypass (Site B)</h1>
+  <p>Site B: <code>test-website-b.pages.dev</code></p>
+
+  <div class="card">
+    <h2>Role of this site</h2>
+    <p>Site B hosts a Cloudflare Pages Function at
+    <code>/de-amp-download/amp-attachment</code> that serves a valid AMP page
+    with <code>Content-Disposition: attachment; filename="amp-page.html"</code>.</p>
+    <p>The AMP page contains a canonical link pointing to Site A. With the fix,
+    Brave should download the file instead of De-AMPing to the canonical URL.</p>
+  </div>
+
+  <div class="card">
+    <h2>Direct link</h2>
+    <p><a href="/de-amp-download/amp-attachment">AMP attachment endpoint</a></p>
+  </div>
+
+  <p>Start the test from <a href="https://test-website-a.pages.dev/de-amp-download/">Site A's test page</a>.</p>
+</body>
+</html>
