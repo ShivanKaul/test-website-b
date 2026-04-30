@@ -29,14 +29,6 @@ async function safe(fn) {
   }
 }
 
-function unsupportedByHarness(reason) {
-  return {
-    ok: false,
-    harnessUnsupported: true,
-    error: reason,
-  };
-}
-
 function resourceUrl(type, token) {
   const url = new URL(`${TEST_PATH}api/resource`, location.origin);
   url.searchParams.set("type", type);
@@ -407,10 +399,6 @@ async function writeAll(token) {
   return {
     cleanup,
 
-    altSvc: unsupportedByHarness(
-      "Alt-Svc requires a custom protocol/server setup, not Cloudflare Pages."
-    ),
-
     cacheStorage: await safe(() => writeCacheStorage(token)),
 
     cookieHTTP: await safe(() => writeHttpCookie(token)),
@@ -421,15 +409,7 @@ async function writeAll(token) {
 
     cssCache: await safe(() => probeCssCache(token)),
 
-    faviconCache: unsupportedByHarness(
-      "Favicon cache cannot be credibly observed from this iframe harness without server-side counters."
-    ),
-
     fetchCache: await safe(() => probeFetchCache(token)),
-
-    fontCache: unsupportedByHarness(
-      "Font cache needs a server-side counter or a dynamically generated observable font."
-    ),
 
     iframeCache: await safe(() => probeIframeCache(token)),
 
@@ -442,10 +422,6 @@ async function writeAll(token) {
       return localStorage.getItem(STORAGE_KEY);
     }),
 
-    prefetchCache: unsupportedByHarness(
-      "Prefetch cache cannot be distinguished from ordinary HTTP cache here without server-side counters."
-    ),
-
     scriptCache: await safe(() => probeScriptCache(token)),
 
     xhrCache: await safe(() => probeXhrCache(token)),
@@ -454,10 +430,6 @@ async function writeAll(token) {
 
 async function readAll(token) {
   return {
-    altSvc: unsupportedByHarness(
-      "Alt-Svc requires a custom protocol/server setup, not Cloudflare Pages."
-    ),
-
     cacheStorage: await safe(() => readCacheStorage()),
 
     cookieHTTP: await safe(() => readHttpCookie()),
@@ -468,15 +440,7 @@ async function readAll(token) {
 
     cssCache: await safe(() => probeCssCache(token)),
 
-    faviconCache: unsupportedByHarness(
-      "Favicon cache cannot be credibly observed from this iframe harness without server-side counters."
-    ),
-
     fetchCache: await safe(() => probeFetchCache(token)),
-
-    fontCache: unsupportedByHarness(
-      "Font cache needs a server-side counter or a dynamically generated observable font."
-    ),
 
     iframeCache: await safe(() => probeIframeCache(token)),
 
@@ -485,10 +449,6 @@ async function readAll(token) {
     indexedDB: await safe(() => readIndexedDB()),
 
     localStorage: await safe(() => localStorage.getItem(STORAGE_KEY)),
-
-    prefetchCache: unsupportedByHarness(
-      "Prefetch cache cannot be distinguished from ordinary HTTP cache here without server-side counters."
-    ),
 
     scriptCache: await safe(() => probeScriptCache(token)),
 
