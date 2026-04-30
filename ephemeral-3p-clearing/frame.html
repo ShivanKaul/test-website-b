@@ -10,10 +10,13 @@
 const params = new URLSearchParams(location.search);
 const parentOrigin = params.get("parentOrigin") || "*";
 
+const TEST_PATH = "/ephemeral-3p-clearing/";
 const STORAGE_KEY = "brave_ephemeral_3p_probe";
+const HTTP_COOKIE_KEY = "brave_ephemeral_3p_probe_http";
 const DB_NAME = "brave_ephemeral_3p_probe_db";
 const STORE = "store";
 const CACHE_NAME = "brave-ephemeral-3p-cache";
+const CACHE_STORAGE_URL = `${TEST_PATH}cache-storage-probe.txt`;
 
 document.getElementById("status").textContent = `Frame origin: ${location.origin}`;
 
@@ -59,6 +62,7 @@ function openDb() {
 
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error("IndexedDB open blocked"));
   });
 }
 
@@ -74,6 +78,11 @@ async function idbOp(mode, operation) {
 
     req.onsuccess = () => {
       requestResult = req.result;
+    };
+
+    req.onerror = () => {
+      db.close();
+      reject(req.error);
     };
 
     tx.oncomplete = () => {
@@ -104,15 +113,16 @@ async function readIndexedDB() {
 
 async function clearIndexedDB() {
   await idbOp("readwrite", (store) => store.delete(STORAGE_KEY));
+  return true;
 }
 
 async function writeCacheStorage(value) {
   if (!window.caches) throw new Error("CacheStorage unsupported");
 
   const cache = await caches.open(CACHE_NAME);
-  const url = `/ephemeral-3p-clearing/cache-storage-probe.txt?token=${encodeURIComponent(value)}`;
+  const requestUrl = new URL(CACHE_STORAGE_URL, location.origin).href;
 
-  await cache.put(url, new Response(value, {
+  await cache.put(requestUrl, new Response(value, {
     headers: { "Content-Type": "text/plain; charset=utf-8" },
   }));
 
@@ -123,29 +133,23 @@ async function readCacheStorage() {
   if (!window.caches) throw new Error("CacheStorage unsupported");
 
   const cache = await caches.open(CACHE_NAME);
-  const requests = await cache.keys();
+  const requestUrl = new URL(CACHE_STORAGE_URL, location.origin).href;
+  const response = await cache.match(requestUrl);
 
-  const request = requests.find((req) => {
-    const url = new URL(req.url);
-    return url.pathname.endsWith("/ephemeral-3p-clearing/cache-storage-probe.txt");
-  });
+  if (!response) return null;
 
-  if (!request) return null;
-
-  return new URL(request.url).searchParams.get("token");
+  return response.text();
 }
 
 async function clearCacheStorage() {
-  if (!window.caches) return;
+  if (!window.caches) return true;
 
-  const cache = await caches.open(CACHE_NAME);
-  const requests = await cache.keys();
-
-  await Promise.all(requests.map((request) => cache.delete(request)));
+  await caches.delete(CACHE_NAME);
+  return true;
 }
 
 async function fetchCacheProbe(token) {
-  const url = `/ephemeral-3p-clearing/api/cache-resource?token=${encodeURIComponent(token)}`;
+  const url = `${TEST_PATH}api/cache-resource?token=${encodeURIComponent(token)}`;
   const response = await fetch(url, { cache: "force-cache" });
 
   return {
@@ -155,25 +159,74 @@ async function fetchCacheProbe(token) {
   };
 }
 
-async function clearAll() {
-  localStorage.removeItem(STORAGE_KEY);
-  clearCookieValue();
-  await clearIndexedDB();
-  await clearCacheStorage();
+async function httpCookieRequest(mode, token = "") {
+  const url = new URL(`${TEST_PATH}api/http-cookie`, location.origin);
+  url.searchParams.set("mode", mode);
 
+  if (token) {
+    url.searchParams.set("token", token);
+  }
+
+  const response = await fetch(url.href, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP cookie endpoint failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.value ?? null;
+}
+
+async function writeHttpCookie(token) {
+  return httpCookieRequest("write", token);
+}
+
+async function readHttpCookie() {
+  return httpCookieRequest("read");
+}
+
+async function clearHttpCookie() {
+  await httpCookieRequest("clear");
   return true;
 }
 
+async function clearAll() {
+  return {
+    localStorage: await safe(() => {
+      localStorage.removeItem(STORAGE_KEY);
+      return true;
+    }),
+
+    cookie: await safe(() => {
+      clearCookieValue();
+      return true;
+    }),
+
+    httpCookie: await safe(() => clearHttpCookie()),
+
+    indexedDB: await safe(() => clearIndexedDB()),
+
+    cacheStorage: await safe(() => clearCacheStorage()),
+  };
+}
+
 async function writeAll(token) {
-  await clearAll();
+  const cleanup = await clearAll();
 
   return {
+    cleanup,
+
     localStorage: await safe(() => {
       localStorage.setItem(STORAGE_KEY, token);
       return localStorage.getItem(STORAGE_KEY);
     }),
 
     cookie: await safe(() => setCookieValue(token)),
+
+    httpCookie: await safe(() => writeHttpCookie(token)),
 
     indexedDB: await safe(() => writeIndexedDB(token)),
 
@@ -188,6 +241,8 @@ async function readAll(token) {
     localStorage: await safe(() => localStorage.getItem(STORAGE_KEY)),
 
     cookie: await safe(() => readCookieValue()),
+
+    httpCookie: await safe(() => readHttpCookie()),
 
     indexedDB: await safe(() => readIndexedDB()),
 
@@ -211,7 +266,7 @@ window.addEventListener("message", async (event) => {
     } else if (cmd === "read") {
       result = await readAll(token);
     } else if (cmd === "clear") {
-      result = await safe(() => clearAll());
+      result = await clearAll();
     } else {
       throw new Error(`Unknown command: ${cmd}`);
     }
