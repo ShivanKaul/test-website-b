@@ -1,0 +1,229 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Third-party storage frame</title>
+
+<body>
+  <h3>Third-party frame</h3>
+  <p id="status"></p>
+
+<script>
+const params = new URLSearchParams(location.search);
+const parentOrigin = params.get("parentOrigin") || "*";
+
+const STORAGE_KEY = "brave_ephemeral_3p_probe";
+const DB_NAME = "brave_ephemeral_3p_probe_db";
+const STORE = "store";
+const CACHE_NAME = "brave-ephemeral-3p-cache";
+
+document.getElementById("status").textContent = `Frame origin: ${location.origin}`;
+
+async function safe(fn) {
+  try {
+    return { ok: true, value: await fn() };
+  } catch (e) {
+    return { ok: false, error: `${e.name}: ${e.message}` };
+  }
+}
+
+function setCookieValue(value) {
+  document.cookie =
+    `${encodeURIComponent(STORAGE_KEY)}=${encodeURIComponent(value)}; ` +
+    `Max-Age=3600; Path=/; SameSite=None; Secure`;
+
+  return readCookieValue();
+}
+
+function readCookieValue() {
+  const prefix = `${encodeURIComponent(STORAGE_KEY)}=`;
+
+  const item = document.cookie
+    .split("; ")
+    .find((part) => part.startsWith(prefix));
+
+  return item ? decodeURIComponent(item.slice(prefix.length)) : null;
+}
+
+function clearCookieValue() {
+  document.cookie =
+    `${encodeURIComponent(STORAGE_KEY)}=; ` +
+    `Max-Age=0; Path=/; SameSite=None; Secure`;
+}
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(STORE);
+    };
+
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbOp(mode, operation) {
+  const db = await openDb();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, mode);
+    const store = tx.objectStore(STORE);
+    let requestResult;
+
+    const req = operation(store);
+
+    req.onsuccess = () => {
+      requestResult = req.result;
+    };
+
+    tx.oncomplete = () => {
+      db.close();
+      resolve(requestResult ?? null);
+    };
+
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error || new Error("IndexedDB transaction aborted"));
+    };
+  });
+}
+
+async function writeIndexedDB(value) {
+  await idbOp("readwrite", (store) => store.put(value, STORAGE_KEY));
+  return value;
+}
+
+async function readIndexedDB() {
+  return idbOp("readonly", (store) => store.get(STORAGE_KEY));
+}
+
+async function clearIndexedDB() {
+  await idbOp("readwrite", (store) => store.delete(STORAGE_KEY));
+}
+
+async function writeCacheStorage(value) {
+  if (!window.caches) throw new Error("CacheStorage unsupported");
+
+  const cache = await caches.open(CACHE_NAME);
+  const url = `/ephemeral-3p-clearing/cache-storage-probe.txt?token=${encodeURIComponent(value)}`;
+
+  await cache.put(url, new Response(value, {
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  }));
+
+  return value;
+}
+
+async function readCacheStorage() {
+  if (!window.caches) throw new Error("CacheStorage unsupported");
+
+  const cache = await caches.open(CACHE_NAME);
+  const requests = await cache.keys();
+
+  const request = requests.find((req) => {
+    const url = new URL(req.url);
+    return url.pathname.endsWith("/ephemeral-3p-clearing/cache-storage-probe.txt");
+  });
+
+  if (!request) return null;
+
+  return new URL(request.url).searchParams.get("token");
+}
+
+async function clearCacheStorage() {
+  if (!window.caches) return;
+
+  const cache = await caches.open(CACHE_NAME);
+  const requests = await cache.keys();
+
+  await Promise.all(requests.map((request) => cache.delete(request)));
+}
+
+async function fetchCacheProbe(token) {
+  const url = `/ephemeral-3p-clearing/api/cache-resource?token=${encodeURIComponent(token)}`;
+  const response = await fetch(url, { cache: "force-cache" });
+
+  return {
+    status: response.status,
+    cacheControl: response.headers.get("cache-control"),
+    body: await response.text(),
+  };
+}
+
+async function clearAll() {
+  localStorage.removeItem(STORAGE_KEY);
+  clearCookieValue();
+  await clearIndexedDB();
+  await clearCacheStorage();
+
+  return true;
+}
+
+async function writeAll(token) {
+  await clearAll();
+
+  return {
+    localStorage: await safe(() => {
+      localStorage.setItem(STORAGE_KEY, token);
+      return localStorage.getItem(STORAGE_KEY);
+    }),
+
+    cookie: await safe(() => setCookieValue(token)),
+
+    indexedDB: await safe(() => writeIndexedDB(token)),
+
+    cacheStorage: await safe(() => writeCacheStorage(token)),
+
+    httpFetch: await safe(() => fetchCacheProbe(token)),
+  };
+}
+
+async function readAll(token) {
+  return {
+    localStorage: await safe(() => localStorage.getItem(STORAGE_KEY)),
+
+    cookie: await safe(() => readCookieValue()),
+
+    indexedDB: await safe(() => readIndexedDB()),
+
+    cacheStorage: await safe(() => readCacheStorage()),
+
+    httpFetch: await safe(() => fetchCacheProbe(token)),
+  };
+}
+
+window.addEventListener("message", async (event) => {
+  if (parentOrigin !== "*" && event.origin !== parentOrigin) return;
+
+  const { id, cmd, token } = event.data || {};
+  if (!id || !cmd) return;
+
+  try {
+    let result;
+
+    if (cmd === "write") {
+      result = await writeAll(token);
+    } else if (cmd === "read") {
+      result = await readAll(token);
+    } else if (cmd === "clear") {
+      result = await safe(() => clearAll());
+    } else {
+      throw new Error(`Unknown command: ${cmd}`);
+    }
+
+    event.source.postMessage({ id, ok: true, result }, event.origin);
+  } catch (e) {
+    event.source.postMessage({
+      id,
+      ok: false,
+      error: `${e.name}: ${e.message}`,
+    }, event.origin);
+  }
+});
+</script>
+</body>
