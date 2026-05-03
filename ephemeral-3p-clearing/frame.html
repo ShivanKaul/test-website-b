@@ -5,7 +5,6 @@
 <body>
   <h3>Third-party frame</h3>
   <p id="status"></p>
-  <div id="css-cache-target"></div>
 
 <script>
 const params = new URLSearchParams(location.search);
@@ -16,8 +15,6 @@ const STORAGE_KEY = "brave_ephemeral_3p_probe";
 const COOKIESTORE_KEY = "brave_ephemeral_3p_probe_cookie_store";
 const DB_NAME = "brave_ephemeral_3p_probe_db";
 const STORE = "store";
-const CACHE_NAME = "brave-ephemeral-3p-cache";
-const CACHE_STORAGE_URL = `${TEST_PATH}cache-storage-probe.txt`;
 
 document.getElementById("status").textContent = `Frame origin: ${location.origin}`;
 
@@ -27,13 +24,6 @@ async function safe(fn) {
   } catch (e) {
     return { ok: false, error: `${e.name}: ${e.message}` };
   }
-}
-
-function resourceUrl(type, token) {
-  const url = new URL(`${TEST_PATH}api/resource`, location.origin);
-  url.searchParams.set("type", type);
-  url.searchParams.set("token", token);
-  return url.href;
 }
 
 function setCookieValue(value) {
@@ -161,38 +151,6 @@ async function clearIndexedDB() {
   return true;
 }
 
-async function writeCacheStorage(value) {
-  if (!window.caches) throw new Error("CacheStorage unsupported");
-
-  const cache = await caches.open(CACHE_NAME);
-  const requestUrl = new URL(CACHE_STORAGE_URL, location.origin).href;
-
-  await cache.put(requestUrl, new Response(value, {
-    headers: { "Content-Type": "text/plain; charset=utf-8" },
-  }));
-
-  return value;
-}
-
-async function readCacheStorage() {
-  if (!window.caches) throw new Error("CacheStorage unsupported");
-
-  const cache = await caches.open(CACHE_NAME);
-  const requestUrl = new URL(CACHE_STORAGE_URL, location.origin).href;
-  const response = await cache.match(requestUrl);
-
-  if (!response) return null;
-
-  return response.text();
-}
-
-async function clearCacheStorage() {
-  if (!window.caches) return true;
-
-  await caches.delete(CACHE_NAME);
-  return true;
-}
-
 async function httpCookieRequest(mode, token = "") {
   const url = new URL(`${TEST_PATH}api/http-cookie`, location.origin);
   url.searchParams.set("mode", mode);
@@ -227,150 +185,6 @@ async function clearHttpCookie() {
   return true;
 }
 
-async function probeFetchCache(token) {
-  const response = await fetch(resourceUrl("fetch", token), {
-    cache: "force-cache",
-  });
-
-  const data = await response.json();
-  return data.value;
-}
-
-async function probeXhrCache(token) {
-  const url = resourceUrl("xhr", token);
-
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-
-    xhr.open("GET", url);
-    xhr.responseType = "json";
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(xhr.response.value);
-      } else {
-        reject(new Error(`XHR failed: ${xhr.status}`));
-      }
-    };
-
-    xhr.onerror = () => reject(new Error("XHR network error"));
-    xhr.send();
-  });
-}
-
-async function probeCssCache(token) {
-  const old = document.getElementById("css-cache-probe-link");
-  if (old) old.remove();
-
-  const target = document.getElementById("css-cache-target");
-  const link = document.createElement("link");
-
-  link.id = "css-cache-probe-link";
-  link.rel = "stylesheet";
-  link.href = resourceUrl("css", token);
-
-  await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("CSS load timed out")), 8000);
-
-    link.onload = () => {
-      clearTimeout(timeout);
-      resolve();
-    };
-
-    link.onerror = () => {
-      clearTimeout(timeout);
-      reject(new Error("CSS load failed"));
-    };
-
-    document.head.appendChild(link);
-  });
-
-  return getComputedStyle(target)
-    .getPropertyValue("--cache-probe-css")
-    .trim()
-    .replace(/^"|"$/g, "");
-}
-
-async function probeImageCache(token) {
-  const img = new Image();
-
-  await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("Image load timed out")), 8000);
-
-    img.onload = () => {
-      clearTimeout(timeout);
-      resolve();
-    };
-
-    img.onerror = () => {
-      clearTimeout(timeout);
-      reject(new Error("Image load failed"));
-    };
-
-    img.src = resourceUrl("image", token);
-  });
-
-  return `${img.naturalWidth}x${img.naturalHeight}`;
-}
-
-async function probeScriptCache(token) {
-  window.__resourceCacheProbe = window.__resourceCacheProbe || {};
-  delete window.__resourceCacheProbe.script;
-
-  const old = document.getElementById("script-cache-probe");
-  if (old) old.remove();
-
-  const script = document.createElement("script");
-  script.id = "script-cache-probe";
-  script.src = resourceUrl("script", token);
-
-  await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("Script load timed out")), 8000);
-
-    script.onload = () => {
-      clearTimeout(timeout);
-      resolve();
-    };
-
-    script.onerror = () => {
-      clearTimeout(timeout);
-      reject(new Error("Script load failed"));
-    };
-
-    document.body.appendChild(script);
-  });
-
-  return window.__resourceCacheProbe.script || null;
-}
-
-async function probeIframeCache(token) {
-  const old = document.getElementById("iframe-cache-probe");
-  if (old) old.remove();
-
-  const iframe = document.createElement("iframe");
-  iframe.id = "iframe-cache-probe";
-  iframe.style.display = "none";
-  iframe.src = resourceUrl("iframe", token);
-
-  await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("Nested iframe load timed out")), 8000);
-
-    iframe.onload = () => {
-      clearTimeout(timeout);
-      resolve();
-    };
-
-    iframe.onerror = () => {
-      clearTimeout(timeout);
-      reject(new Error("Nested iframe load failed"));
-    };
-
-    document.body.appendChild(iframe);
-  });
-
-  return iframe.contentWindow.document.body.dataset.cacheProbeValue || null;
-}
-
 async function clearAll() {
   return {
     localStorage: await safe(() => {
@@ -388,8 +202,6 @@ async function clearAll() {
     cookieStore: await safe(() => clearCookieStore()),
 
     indexedDB: await safe(() => clearIndexedDB()),
-
-    cacheStorage: await safe(() => clearCacheStorage()),
   };
 }
 
@@ -399,21 +211,11 @@ async function writeAll(token) {
   return {
     cleanup,
 
-    cacheStorage: await safe(() => writeCacheStorage(token)),
-
     cookieHTTP: await safe(() => writeHttpCookie(token)),
 
     cookieJS: await safe(() => setCookieValue(token)),
 
     cookieStore: await safe(() => writeCookieStore(token)),
-
-    cssCache: await safe(() => probeCssCache(token)),
-
-    fetchCache: await safe(() => probeFetchCache(token)),
-
-    iframeCache: await safe(() => probeIframeCache(token)),
-
-    imageCache: await safe(() => probeImageCache(token)),
 
     indexedDB: await safe(() => writeIndexedDB(token)),
 
@@ -421,38 +223,20 @@ async function writeAll(token) {
       localStorage.setItem(STORAGE_KEY, token);
       return localStorage.getItem(STORAGE_KEY);
     }),
-
-    scriptCache: await safe(() => probeScriptCache(token)),
-
-    xhrCache: await safe(() => probeXhrCache(token)),
   };
 }
 
 async function readAll(token) {
   return {
-    cacheStorage: await safe(() => readCacheStorage()),
-
     cookieHTTP: await safe(() => readHttpCookie()),
 
     cookieJS: await safe(() => readCookieValue()),
 
     cookieStore: await safe(() => readCookieStore()),
 
-    cssCache: await safe(() => probeCssCache(token)),
-
-    fetchCache: await safe(() => probeFetchCache(token)),
-
-    iframeCache: await safe(() => probeIframeCache(token)),
-
-    imageCache: await safe(() => probeImageCache(token)),
-
     indexedDB: await safe(() => readIndexedDB()),
 
     localStorage: await safe(() => localStorage.getItem(STORAGE_KEY)),
-
-    scriptCache: await safe(() => probeScriptCache(token)),
-
-    xhrCache: await safe(() => probeXhrCache(token)),
   };
 }
 
