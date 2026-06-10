@@ -1,4 +1,5 @@
 {
   "title": "Storage Access API",
-  "description": "Hosts the embedded tester and seed page for the Storage Access API test."
+  "description": "Hosts the embedded tester and seed page for the Storage Access API test.",
+  "added": "2025-12-16"
 }

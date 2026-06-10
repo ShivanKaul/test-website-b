@@ -1,1 +1,5 @@
-{ "title": "Ephemeral Third-Party Storage Clearing", "description": "Hosts the third-party iframe, bounce page, and cache endpoint used by Test Website A to test third-party storage clearing." }
+{
+  "title": "Ephemeral Third-Party Storage Clearing",
+  "description": "Hosts the third-party iframe, bounce page, and cache endpoint used by Test Website A to test third-party storage clearing.",
+  "added": "2026-04-29"
+}

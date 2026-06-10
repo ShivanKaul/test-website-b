@@ -1,0 +1,144 @@
+/* Shared styles for the privacy/security test pages.
+ *
+ * Linked from every page via <link rel="stylesheet" href="/styles.css">.
+ * Pages keep only genuinely page-specific rules in a small inline <style>.
+ *
+ * Built on design tokens so a page can retheme by overriding a variable, e.g.
+ *   <style>:root { --accent: #fb542b; }</style>
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+
+  --maxw: 800px;
+  --radius: 14px;
+
+  --accent: #0066cc;
+
+  --line: rgba(127, 127, 127, 0.28);
+  --panel: rgba(127, 127, 127, 0.06);
+  --panel-strong: rgba(127, 127, 127, 0.1);
+  --code-bg: rgba(127, 127, 127, 0.14);
+
+  --ok: #1e8449;
+  --bad: #c0392b;
+  --warn: #b9770e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #4ea1ff;
+    --ok: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+  }
+}
+
+/* Layout */
+body {
+  font-family: var(--font-sans);
+  line-height: 1.45;
+  margin: 0 auto;
+  padding: 18px;
+  max-width: var(--maxw);
+}
+
+h1 { font-size: 1.4em; margin: 0 0 8px; }
+h2 { font-size: 1.15em; }
+
+a { color: var(--accent); }
+
+.muted { opacity: 0.85; }
+.small { font-size: 0.9em; }
+
+/* Site header (used by the generated index and page tops) */
+.site-header { margin-bottom: 18px; }
+.site-header p { margin: 4px 0; opacity: 0.85; }
+
+/* Cards / panels */
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin: 14px 0;
+  background: var(--panel);
+}
+
+/* Index link-cards */
+a.card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s;
+}
+a.card:hover { background: var(--panel-strong); }
+a.card h2 { margin: 0 0 4px; }
+a.card p { margin: 0 0 6px; opacity: 0.85; }
+a.card .dir { font-family: var(--font-mono); font-size: 0.85em; opacity: 0.6; }
+
+/* Code */
+code, .mono { font-family: var(--font-mono); }
+code {
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+pre {
+  background: var(--panel);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.85em;
+}
+pre code { background: none; padding: 0; }
+
+/* Tables */
+table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+th, td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.92em;
+}
+th { background: var(--panel-strong); }
+td code { font-size: 0.9em; }
+
+/* Buttons */
+button {
+  font-size: 1em;
+  padding: 9px 20px;
+  cursor: pointer;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  color: inherit;
+}
+button:hover { background: var(--line); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+/* Forms */
+input, select, textarea {
+  font: inherit;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: inherit;
+}
+
+/* Status / verdict helpers */
+.status { margin-top: 10px; opacity: 0.85; min-height: 1.2em; }
+.verdict { font-size: 1.15em; font-weight: bold; margin-top: 14px; }
+
+.ok, .match, .safe { color: var(--ok); }
+.bad, .mismatch, .leak { color: var(--bad); }
+.mismatch, .leak { font-weight: bold; }
+.warn { color: var(--warn); }
+
+details { margin-top: 1.4em; opacity: 0.9; }
+details summary { cursor: pointer; font-weight: bold; }

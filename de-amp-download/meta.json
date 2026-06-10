@@ -1,4 +1,5 @@
 {
   "title": "De-AMP Content-Disposition: attachment Bypass",
-  "description": "Hosts the AMP page served with Content-Disposition: attachment via a Cloudflare Pages Function."
+  "description": "Hosts the AMP page served with Content-Disposition: attachment via a Cloudflare Pages Function.",
+  "added": "2026-04-13"
 }

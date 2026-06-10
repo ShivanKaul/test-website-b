@@ -4,27 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Storage Access API Embedded Tester Site B</title>
+  <link rel="stylesheet" href="/styles.css" />
   <style>
-    :root { color-scheme: light dark; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.45; margin: 0; padding: 18px; }
+    /* Embedded full-width layout (no centered max-width inside the iframe). */
+    body { max-width: none; margin: 0; }
     h1,h2 { margin: 0 0 10px 0; }
     p { margin: 8px 0; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
-    .card { border: 1px solid rgba(127,127,127,0.28); border-radius: 14px; padding: 12px; margin: 12px 0; background: rgba(127,127,127,0.06); }
-    .warn { border-color: rgba(200,140,0,0.8); }
-    .ok { border-color: rgba(0,160,0,0.7); }
-    .no { border-color: rgba(200,0,0,0.7); }
-    button {
-      padding: 10px 14px;
-      border-radius: 10px;
-      border: 1px solid rgba(127,127,127,0.35);
-      background: rgba(127,127,127,0.12);
-      color: inherit;
-      cursor: pointer;
-    }
-    button:hover { background: rgba(127,127,127,0.18); }
-    pre { padding: 12px; border-radius: 10px; overflow: auto; background: rgba(127,127,127,0.14); margin: 0; }
-    .small { opacity: 0.85; }
+    /* Card state modifiers recolor only the border (renamed to avoid the
+       shared .ok/.warn text-color helpers). */
+    .is-warn { border-color: rgba(200,140,0,0.8); }
+    .is-ok { border-color: rgba(0,160,0,0.7); }
+    .is-no { border-color: rgba(200,0,0,0.7); }
+    pre { margin: 0; }
   </style>
 </head>
 <body>
@@ -71,13 +62,13 @@
       }
 
       function setPrimary(message, ok) {
-        primaryEl.className = "card " + (ok ? "ok" : "no");
+        primaryEl.className = "card " + (ok ? "is-ok" : "is-no");
         primaryEl.innerHTML = "<b>" + message + "</b>";
         post("status", { message });
       }
 
       function setPrimaryWarn(message) {
-        primaryEl.className = "card warn";
+        primaryEl.className = "card is-warn";
         primaryEl.innerHTML = "<b>" + message + "</b>";
         post("status", { message });
       }
@@ -261,7 +252,7 @@
 
       if (sharedHosting) {
         warningCard.style.display = "block";
-        warningCard.className = "card warn";
+        warningCard.className = "card is-warn";
         warningCard.innerHTML =
           "<b>Context warning</b>" +
           "<div class='small'>This embed uses pages.dev for both sites. Many engines treat this as same site. Storage Access API is designed for cross site embeds.</div>";
@@ -332,7 +323,7 @@
       main();
     } catch (e) {
       const msg = (e?.name || "Error") + ": " + (e?.message || String(e));
-      document.getElementById("primaryStatus").className = "card no";
+      document.getElementById("primaryStatus").className = "card is-no";
       document.getElementById("primaryStatus").innerHTML = "<b>JavaScript error.</b><div class='small mono'>" + msg + "</div>";
       document.getElementById("out").textContent = e?.stack ? String(e.stack) : msg;
       console.error(e);
