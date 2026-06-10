@@ -1,4 +1,0 @@
-{
-  "title": "Payment Request API Language Fingerprint Bypass (third-party origin)",
-  "description": "Site B's role: the unrelated third-party server. Site A's merchant page points a PaymentRequest supportedMethods URL at endpoints here. Brave fetches the payment manifest from the browser-process URLLoaderFactory (not proxied), so this origin receives the full, unreduced Accept-Language even when language-fingerprinting protection is on. Functions: /payment-request-language-bypass/pmh/<token>, /result/<token>, /echo."
-}
