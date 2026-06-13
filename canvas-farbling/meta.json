@@ -1,0 +1,5 @@
+{
+  "title": "Canvas Farbling Cross-Site",
+  "description": "Draws an identical canvas on both sites and measures how much Brave's per-eTLD+1 farbling actually changes the readback.",
+  "added": "2026-06-12"
+}

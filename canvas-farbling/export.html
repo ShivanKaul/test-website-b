@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Canvas farbling export</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="card">
+    <h1>Export this site's farbled canvas</h1>
+    <p class="small muted">
+      Manual fallback for when popups are blocked. Copy the base64 below and
+      paste it into the harness on the other site.
+    </p>
+    <p><span class="small">Origin:</span> <code id="origin"></code></p>
+    <p><span class="small">SHA-256:</span> <code id="hash" style="font-size:0.8em;"></code></p>
+    <textarea id="b64" rows="6" style="width:100%;" readonly></textarea>
+    <p><button id="copy" type="button">Copy</button> <span class="status" id="status"></span></p>
+  </div>
+
+  <script src="./capture.js"></script>
+  <script>
+    (async function () {
+      const $ = (id) => document.getElementById(id);
+      $("origin").textContent = location.origin;
+      const cap = CF.captureCanvas();
+      $("hash").textContent = await CF.sha256Hex(cap.rgba);
+      $("b64").value = CF.rgbaToBase64(cap.rgba);
+      $("copy").addEventListener("click", async () => {
+        $("b64").select();
+        try {
+          await navigator.clipboard.writeText($("b64").value);
+          $("status").textContent = "Copied.";
+        } catch (e) {
+          $("status").textContent = "Select the text and copy manually.";
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

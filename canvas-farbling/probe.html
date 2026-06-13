@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Canvas farbling probe</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    canvas { border: 1px solid var(--line); border-radius: 6px; image-rendering: pixelated; }
+    .hash { font-size: 0.8em; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Canvas probe</h1>
+    <p class="small muted">
+      This page captures one canvas on its own origin and, when opened from the
+      cross-site harness, posts the raw pixels back to that opener window. The
+      farbling Brave applies here is seeded by <em>this</em> page's eTLD+1.
+    </p>
+    <p><span class="small">Origin:</span> <code id="origin"></code></p>
+    <p><span class="small">Canvas SHA-256:</span> <code class="hash" id="hash">(capturing...)</code></p>
+    <canvas id="preview" width="300" height="150" style="width:300px;height:150px;"></canvas>
+    <p class="status" id="status"></p>
+  </div>
+
+  <script src="./capture.js"></script>
+  <script>
+    (async function () {
+      const $ = (id) => document.getElementById(id);
+      $("origin").textContent = location.origin;
+
+      // Draw a visible preview (this readback is also farbled, but it is only
+      // for the human; the bytes we ship back come from CF.captureCanvas()).
+      const pctx = $("preview").getContext("2d", { willReadFrequently: true });
+      CF.drawScene(pctx);
+
+      const cap = CF.captureCanvas();
+      const hash = await CF.sha256Hex(cap.rgba);
+      $("hash").textContent = hash;
+
+      const params = new URL(location.href).searchParams;
+      const openerOrigin = params.get("opener") || "";
+      const label = location.host;
+
+      if (window.opener && openerOrigin) {
+        // Transfer the pixel buffer back to the opener (cross-origin
+        // postMessage; not gated by storage partitioning).
+        const buf = cap.rgba.buffer;
+        window.opener.postMessage(
+          {
+            type: "cf-capture",
+            label: label,
+            origin: location.origin,
+            hash: hash,
+            width: cap.width,
+            height: cap.height,
+            rgba: buf,
+          },
+          openerOrigin,
+          [buf]
+        );
+        $("status").textContent =
+          "Capture sent back to the harness. You can close this tab.";
+      } else {
+        $("status").textContent =
+          "Opened standalone (no harness). Showing this site's own capture only.";
+      }
+    })();
+  </script>
+</body>
+</html>

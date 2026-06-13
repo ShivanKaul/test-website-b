@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Canvas farbling cross-site re-identification</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .grid { display: flex; gap: 16px; flex-wrap: wrap; }
+    canvas { border: 1px solid var(--line); border-radius: 6px; }
+    .hash { font-size: 0.8em; }
+    .num { font-variant-numeric: tabular-nums; }
+    .bars div { font-family: var(--font-mono); font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <h1>Canvas farbling: cross-site re-identification</h1>
+    <p class="muted small">This page: <code id="origin"></code> &middot; other site: <code id="otherOrigin"></code></p>
+  </header>
+
+  <div class="card">
+    <p>
+      Draws the same deterministic canvas on two different eTLD+1 sites
+      (<code>test-website-a.pages.dev</code> and
+      <code>test-website-b.pages.dev</code>; <code>pages.dev</code> is a public
+      suffix, so Brave seeds each with a different farbling token). The drawing
+      is identical, so any difference between the two readbacks is farbling.
+    </p>
+    <p class="small muted">
+      Run in Brave with Shields up. The cross-site step opens the other site in
+      a popup; it captures its own farbled canvas and posts the pixels back.
+    </p>
+    <div class="grid" style="margin:12px 0;">
+      <div>
+        <div class="small muted">This site's farbled canvas</div>
+        <canvas id="preview" width="300" height="150" style="width:300px;height:150px;"></canvas>
+      </div>
+    </div>
+    <p><button id="run" type="button">Run cross-site test</button></p>
+    <p class="status" id="status">Ready.</p>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none;">
+    <h2>Result</h2>
+    <p class="verdict" id="verdict"></p>
+
+    <table>
+      <tbody>
+        <tr><th>This site SHA-256</th><td><code class="hash" id="hashA"></code></td></tr>
+        <tr><th>Other site SHA-256</th><td><code class="hash" id="hashB"></code></td></tr>
+        <tr><th>Naive hash fingerprint</th><td id="hashVerdict"></td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top:16px;">Pixel-level cross-site diff</h3>
+    <table>
+      <tbody>
+        <tr><th>Canvas size</th><td class="num" id="size"></td></tr>
+        <tr><th>Pixels identical across both sites</th><td class="num" id="identPct"></td></tr>
+        <tr><th>RGB channels changed by farbling</th><td class="num" id="chChanged"></td></tr>
+        <tr><th>Max absolute per-channel delta</th><td class="num" id="maxDelta"></td></tr>
+        <tr><th>Alpha channel touched</th><td class="num" id="alpha"></td></tr>
+        <tr><th>Within-site sanity (this site captured twice)</th><td class="num" id="sanity"></td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top:16px;">Channel delta distribution (this &minus; other)</h3>
+    <div class="bars" id="hist"></div>
+
+    <details>
+      <summary>Scope</summary>
+      <p class="small">
+        Model-free check of the mechanism in the HackerOne report. Brave's
+        <code>PerturbPixels()</code> runs ~512 single-bit XORs regardless of
+        canvas size and never touches alpha, so the SHA-256 changes across sites
+        (breaking hash-based fingerprinting) while the device-rendered pixels
+        stay nearly intact (the signal a perceptual matcher uses).
+      </p>
+      <p class="small">
+        Does not run the reporter's CNN and does not test whether farbling makes
+        a device <em>more</em> identifiable than no defense; that needs a
+        no-farbling baseline and the trained encoder. Content is held fixed here
+        to isolate farbling; the reporter randomizes content and relies on the
+        model being content-invariant.
+      </p>
+    </details>
+
+    <details>
+      <summary>Manual fallback (no popup)</summary>
+      <p class="small">
+        Open <code id="exportUrl"></code>, copy the base64, paste it below.
+      </p>
+      <textarea id="paste" rows="4" style="width:100%;" placeholder="paste other site's base64 capture here"></textarea>
+      <p><button id="comparePaste" type="button">Compare pasted capture</button></p>
+    </details>
+  </div>
+
+  <script src="./capture.js"></script>
+  <script>
+    const OTHER_ORIGIN = "https://test-website-a.pages.dev";
+    const OTHER_PROBE = OTHER_ORIGIN + "/canvas-farbling/probe.html";
+
+    const $ = (id) => document.getElementById(id);
+    $("origin").textContent = location.origin;
+    $("otherOrigin").textContent = OTHER_ORIGIN;
+    $("exportUrl").textContent = OTHER_ORIGIN + "/canvas-farbling/export.html";
+    CF.drawScene($("preview").getContext("2d", { willReadFrequently: true }));
+
+    const setStatus = (m) => { $("status").textContent = m; };
+
+    async function compareWithRemote(remote) {
+      const localA = CF.captureCanvas();
+      const localA2 = CF.captureCanvas();
+      const hashA = await CF.sha256Hex(localA.rgba);
+      const sanity = CF.analyzeDiff(localA.rgba, localA2.rgba);
+      const diff = CF.analyzeDiff(localA.rgba, remote.rgba);
+
+      $("hashA").textContent = hashA;
+      $("hashB").textContent = remote.hash;
+      $("size").textContent = remote.width + " x " + remote.height + " = " +
+        diff.nPixels.toLocaleString() + " pixels, " +
+        diff.totalChannels.toLocaleString() + " RGB channels";
+      $("identPct").textContent = diff.identicalPixelPct.toFixed(3) + "% (" +
+        (diff.nPixels - diff.diffPixels).toLocaleString() + " of " +
+        diff.nPixels.toLocaleString() + ")";
+      $("chChanged").textContent = diff.diffChannels.toLocaleString() + " of " +
+        diff.totalChannels.toLocaleString() + " (" +
+        diff.changedChannelPct.toFixed(4) + "%)";
+      $("maxDelta").textContent = String(diff.maxAbsDelta);
+      $("alpha").textContent = diff.alphaChanged ? "yes (unexpected)" : "no";
+      $("sanity").textContent = sanity.diffChannels === 0
+        ? "identical (0 channels differ) ✓"
+        : sanity.diffChannels + " channels differ (unexpected)";
+
+      const hv = $("hashVerdict");
+      if (hashA === remote.hash) {
+        hv.className = "warn";
+        hv.textContent = "identical across sites — farbling appears OFF.";
+      } else {
+        hv.className = "ok";
+        hv.textContent = "differs across sites — naive hash linkage broken.";
+      }
+
+      const hist = $("hist");
+      hist.innerHTML = "";
+      const keys = Object.keys(diff.deltaHist).map(Number).sort((a, b) => a - b);
+      if (!keys.length) {
+        hist.textContent = "(no channel differences)";
+      } else {
+        const max = Math.max.apply(null, keys.map((k) => diff.deltaHist[k]));
+        keys.forEach((k) => {
+          const n = diff.deltaHist[k];
+          const w = Math.max(1, Math.round((n / max) * 30));
+          const row = document.createElement("div");
+          row.textContent = "delta " + (k > 0 ? "+" + k : k) + ": " +
+            "█".repeat(w) + " " + n.toLocaleString();
+          hist.appendChild(row);
+        });
+      }
+
+      const v = $("verdict");
+      if (diff.diffChannels === 0) {
+        v.className = "warn";
+        v.textContent = "Byte-identical across two unrelated sites — no farbling in effect. Turn on Shields to test farbling.";
+      } else if (diff.isLsbSignature) {
+        v.className = "leak";
+        v.textContent = diff.identicalPixelPct.toFixed(2) +
+          "% of the canvas is identical across two unrelated eTLD+1 sites. Farbling changed " +
+          diff.diffChannels + " channels, each by ±1, alpha untouched. The device canvas signal survives cross-site; only the hash changes.";
+      } else {
+        v.className = "warn";
+        v.textContent = "Cross-site changes exceed the expected ±1 LSB signature (max delta " +
+          diff.maxAbsDelta + "). See the histogram.";
+      }
+      $("resultCard").style.display = "";
+    }
+
+    let popup = null;
+    window.addEventListener("message", (ev) => {
+      if (ev.origin !== OTHER_ORIGIN) return;
+      const d = ev.data;
+      if (!d || d.type !== "cf-capture") return;
+      setStatus("Received other site's capture. Comparing...");
+      try { if (popup && !popup.closed) popup.close(); } catch (e) {}
+      compareWithRemote({
+        hash: d.hash, width: d.width, height: d.height, rgba: new Uint8Array(d.rgba),
+      }).then(() => setStatus("Done."));
+    });
+
+    $("run").addEventListener("click", () => {
+      const url = new URL(OTHER_PROBE);
+      url.searchParams.set("opener", location.origin);
+      setStatus("Opening the other site to capture its farbled canvas...");
+      popup = window.open(url.toString(), "cf_probe", "width=420,height=360");
+      if (!popup) {
+        setStatus("Popup blocked. Allow popups, or use the manual fallback below.");
+        $("resultCard").style.display = "";
+      }
+    });
+
+    $("comparePaste").addEventListener("click", async () => {
+      const b64 = $("paste").value.trim();
+      if (!b64) { setStatus("Paste a base64 capture first."); return; }
+      let rgba;
+      try { rgba = CF.base64ToRgba(b64); }
+      catch (e) { setStatus("Could not decode the pasted capture."); return; }
+      const hash = await CF.sha256Hex(rgba);
+      setStatus("Comparing pasted capture...");
+      await compareWithRemote({ hash: hash, width: CF.WIDTH, height: CF.HEIGHT, rgba: rgba });
+      setStatus("Done (manual).");
+    });
+  </script>
+</body>
+</html>
