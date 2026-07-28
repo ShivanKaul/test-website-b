@@ -1,5 +1,5 @@
 {
-  "title": "De-AMP Sec-Fetch-Site Bypass",
-  "description": "Hosts the fake AMP page that triggers a De-AMP redirect back to Site A.",
-  "added": "2026-03-11"
+  "title": "De-AMP Tests",
+  "description": "Cross-site companion pages for Site A's De-AMP tests: the fake AMP page that triggers a redirect back to Site A, and the AMP page served with Content-Disposition: attachment.",
+  "added": "2026-07-27"
 }

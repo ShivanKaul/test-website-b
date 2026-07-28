@@ -1,7 +1,7 @@
 export async function onRequestGet() {
   const ampHtml = `<html amp>
 <head>
-  <link rel="canonical" href="https://test-website-a.pages.dev/de-amp-download/canonical.html" />
+  <link rel="canonical" href="https://test-website-a.pages.dev/de-amp/download/canonical.html" />
 </head>
 <body>
   <h1>Fake AMP page (served as attachment)</h1>

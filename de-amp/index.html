@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>De-AMP Tests – Test Website B</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>De-AMP Tests</h1>
+    <p><code>test-website-b.pages.dev/de-amp/</code> &mdash; 2 tests &mdash; <a href="/">← All tests</a></p>
+  </header>
+
+    <a class="card" href="download/">
+      <h2>De-AMP Content-Disposition: attachment Bypass</h2>
+      <p>Hosts the AMP page served with Content-Disposition: attachment via a Cloudflare Pages Function.</p>
+      <span class="dir">download/</span>
+    </a>
+    <a class="card" href="sec-fetch-site/">
+      <h2>De-AMP Sec-Fetch-Site Bypass</h2>
+      <p>Hosts the fake AMP page that triggers a De-AMP redirect back to Site A.</p>
+      <span class="dir">sec-fetch-site/</span>
+    </a>
+</body>
+</html>
