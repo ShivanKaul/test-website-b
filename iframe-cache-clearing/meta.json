@@ -1,0 +1,5 @@
+{
+  "title": "Third-Party Iframe Cache Storage Clearing",
+  "description": "Hosts the third-party iframe that writes a tracking id into Cache Storage, used by Test Website A to test third-party Cache Storage clearing.",
+  "added": "2026-08-05"
+}

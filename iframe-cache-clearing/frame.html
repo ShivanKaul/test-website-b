@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Third-party Cache Storage frame</title>
+<link rel="stylesheet" href="/styles.css" />
+
+<body>
+  <h3>Third-party frame</h3>
+  <p id="status"></p>
+
+<script>
+const params = new URLSearchParams(location.search);
+const parentOrigin = params.get('parentOrigin') || '*';
+
+const CACHE_NAME = 'tracking-cache-v1';
+// A synthetic request URL used purely as the cache key. It is never fetched.
+const KEY_URL = '/iframe-cache-clearing/__tracking-id';
+
+const supported = 'caches' in window;
+document.getElementById('status').textContent =
+  `Frame origin: ${location.origin} | Cache Storage: ${supported ? 'yes' : 'no'}`;
+
+function newId() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function readId() {
+  const cache = await caches.open(CACHE_NAME);
+  const res = await cache.match(KEY_URL);
+  return res ? res.text() : null;
+}
+
+async function setId() {
+  const id = newId();
+  const cache = await caches.open(CACHE_NAME);
+  await cache.put(KEY_URL, new Response(id, {
+    headers: { 'content-type': 'text/plain' },
+  }));
+  return id;
+}
+
+async function clearId() {
+  await caches.delete(CACHE_NAME);
+  return true;
+}
+
+window.addEventListener('message', async (event) => {
+  if (parentOrigin !== '*' && event.origin !== parentOrigin) return;
+
+  const { id, cmd } = event.data || {};
+  if (!id || !cmd) return;
+
+  try {
+    if (!supported) {
+      event.source.postMessage({ id, ok: true, result: { supported: false } }, event.origin);
+      return;
+    }
+
+    let result;
+    if (cmd === 'set') {
+      result = { supported: true, id: await setId() };
+    } else if (cmd === 'get') {
+      result = { supported: true, id: await readId() };
+    } else if (cmd === 'clear') {
+      await clearId();
+      result = { supported: true, id: null };
+    } else {
+      throw new Error('Unknown command: ' + cmd);
+    }
+
+    event.source.postMessage({ id, ok: true, result }, event.origin);
+  } catch (e) {
+    event.source.postMessage({
+      id,
+      ok: false,
+      error: `${e.name}: ${e.message}`,
+    }, event.origin);
+  }
+});
+</script>
+</body>
