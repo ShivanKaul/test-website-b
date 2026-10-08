@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Screen Farbling Frame</title>
+</head>
+<body>
+  <script>
+    function mediaMax(feature) {
+      let lo = 0, hi = 20000;
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2);
+        if (matchMedia("(min-" + feature + ": " + mid + "px)").matches) {
+          lo = mid;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      return lo;
+    }
+
+    function probe() {
+      return {
+        outerWidth: outerWidth,
+        outerHeight: outerHeight,
+        "device-width": mediaMax("device-width"),
+        "device-height": mediaMax("device-height"),
+        screenX: screenX,
+        screenY: screenY,
+        "screen.width": screen.width,
+        "screen.height": screen.height,
+      };
+    }
+
+    const label = new URLSearchParams(location.search).get("label");
+    parent.postMessage({ label: label, values: probe() }, "*");
+  </script>
+</body>
+</html>
