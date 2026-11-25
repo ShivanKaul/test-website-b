@@ -1,5 +1,4 @@
-// GET /fetch-later/beacon/<stats|ok>?k=<key> redirects to site A's hit endpoint.
-// /beacon/stats matches an EasyPrivacy rule; /beacon/ok does not.
+// /beacon/stats is on EasyPrivacy.
 
 export async function onRequest({ request, params }) {
   const k = new URL(request.url).searchParams.get('k') || '';
