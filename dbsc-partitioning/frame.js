@@ -1,6 +1,3 @@
-const A_ORIGIN = "https://test-website-a.pages.dev";
-const mode = location.pathname.replace(/\/+$/, "").endsWith("/seed")
-  ? "seed" : "observe";
 const result = document.getElementById("result");
 let attempts = 0;
 
@@ -17,40 +14,17 @@ async function probe() {
 
     const { dbsc, ordinary } = await response.json();
     const done = Boolean(dbsc) || attempts >= 12;
-    const data = {
-      type: "dbsc-probe",
-      mode,
-      dbsc: dbsc || null,
-      ordinary: ordinary || null,
-      attempts,
-      done,
-    };
-    result.dataset.state = done ? "done" : "checking";
-    result.dataset.dbsc = data.dbsc || "";
-    result.dataset.ordinary = data.ordinary || "";
-    result.textContent = `DBSC: ${data.dbsc || "absent"}\nCookie: ${data.ordinary || "absent"}`;
-
-    if (window.parent !== window) {
-      window.parent.postMessage(data, A_ORIGIN);
-    }
-    if (!done) {
+    if (done) {
+      result.dataset.state = "done";
+      result.dataset.dbsc = dbsc || "";
+      result.dataset.ordinary = ordinary || "";
+      result.textContent = `DBSC ID: ${dbsc || "absent"}\nRegular cookie: ${ordinary || "absent"}`;
+    } else {
       setTimeout(probe, 500);
     }
   } catch (error) {
-    const data = {
-      type: "dbsc-probe",
-      mode,
-      dbsc: null,
-      ordinary: null,
-      attempts,
-      done: true,
-      error: String(error),
-    };
     result.dataset.state = "done";
-    result.textContent = data.error;
-    if (window.parent !== window) {
-      window.parent.postMessage(data, A_ORIGIN);
-    }
+    result.textContent = String(error);
   }
 }
 

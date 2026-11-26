@@ -13,14 +13,15 @@ function cookieValue(header, name) {
 }
 
 export function trackerPage(mode) {
-  const label = mode === "seed" ? "Seed" : "Check";
+  const embedded = mode === "seed";
+  const label = embedded ? "embedded" : "direct";
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>DBSC ${label}</title>
+  <title>Site B (${label})</title>
   <link rel="stylesheet" href="/styles.css">
   <style>
     body { max-width: 750px; }
@@ -29,8 +30,9 @@ export function trackerPage(mode) {
   <script src="/dbsc-partitioning/frame.js" defer></script>
 </head>
 <body>
-  <h1>DBSC ${label}</h1>
+  <h1>Site B (${label})</h1>
   <pre id="result" data-state="checking">Checking…</pre>
+  ${embedded ? "" : "<p>Compare with the other tab. Same DBSC ID and no regular cookie shows the issue.</p>"}
 </body>
 </html>`;
 }
